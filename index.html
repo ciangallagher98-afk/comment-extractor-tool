@@ -395,6 +395,7 @@
         function parseRelativeTime(relativeString, referenceDate) {
             if (!relativeString) return "N/A";
             const now = new Date(referenceDate);
+            const str = String(relativeString).toLowerCase().trim();
             let date = new Date(now);
             const matchers = [
                 { regex: /(\d+)\s*s(ec)?/, unit: 'seconds' }, { regex: /(\d+)\s*m(in)?/, unit: 'minutes' },

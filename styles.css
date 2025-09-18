@@ -1,7 +1,7 @@
 /* General body styling */
 body {
     font-family: 'Inter', sans-serif;
-    background-color: #f0f2f5; /* Lighter gray background */
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
 }
 
 /* Animations */
@@ -17,21 +17,22 @@ body {
 }
 
 .fade-in-up {
-    animation: fadeInUp 0.5s ease-out forwards;
+    animation: fadeInUp 0.6s ease-out forwards;
 }
 
 /* Main container card styling */
 .card {
     background-color: white;
-    border-radius: 1rem; /* 16px */
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.07), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    border: 1px solid #e5e7eb;
+    border-radius: 1.5rem; /* 24px */
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    transition: transform 0.3s ease-in-out;
+    animation: fadeInUp 0.8s ease-out;
 }
 
 /* Title icon styling */
 .title-icon {
-    width: 2rem; /* 32px */
-    height: 2rem; /* 32px */
+    width: 2.5rem; /* 40px */
+    height: 2.5rem; /* 40px */
     margin-right: 0.75rem; /* 12px */
     color: #4f46e5; /* Indigo 600 */
 }
@@ -47,7 +48,55 @@ body {
     100% { transform: rotate(360deg); }
 }
 
-/* Multi-upload drop zone styling */
+/* Image gallery for multiple uploads */
+#gallery-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.thumbnail-wrapper {
+    position: relative;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    transition: transform 0.2s ease-in-out;
+}
+.thumbnail-wrapper:hover {
+    transform: scale(1.05);
+}
+
+.thumbnail {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    display: block;
+}
+
+.remove-img-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+    border: 2px solid white;
+}
+.thumbnail-wrapper:hover .remove-img-btn {
+    opacity: 1;
+}
+
+
+/* Drag-and-drop zone styling */
 .drop-zone {
     border: 2px dashed #d1d5db; /* Gray 300 */
     transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
@@ -61,74 +110,28 @@ body {
 }
 
 .drop-zone-icon {
-    width: 2.5rem; /* 40px */
-    height: 2.5rem; /* 40px */
+    width: 3rem; /* 48px */
+    height: 3rem; /* 48px */
     color: #9ca3af; /* Gray 400 */
     transition: transform 0.3s ease;
 }
 
 .drop-zone:hover .drop-zone-icon {
-    transform: scale(1.05);
-}
-
-/* Image gallery for multiple uploads */
-#gallery-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-    gap: 1rem;
-}
-
-.thumbnail-wrapper {
-    position: relative;
-    border-radius: 0.5rem;
-    overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    transition: transform 0.2s ease;
-}
-.thumbnail-wrapper:hover {
-    transform: scale(1.05);
-}
-
-.thumbnail {
-    width: 100%;
-    height: 100px;
-    object-fit: cover;
-    display: block;
-}
-
-.remove-img-btn {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    background-color: rgba(0, 0, 0, 0.6);
-    color: white;
-    border-radius: 50%;
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-}
-.thumbnail-wrapper:hover .remove-img-btn {
-    opacity: 1;
+    transform: scale(1.1);
 }
 
 /* General button styling */
 .btn {
-    transition: all 0.2s ease;
-    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    font-weight: 600;
-    padding: 0.625rem 1.25rem;
-    border-radius: 0.375rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    font-weight: 700;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
     color: white;
-    border: 1px solid transparent;
 }
 .btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 .btn:disabled {
     opacity: 0.5;
@@ -139,21 +142,18 @@ body {
 
 /* Specific button colors */
 .btn-primary {
-    background-color: #4f46e5; /* Indigo 600 */
-    border-color: #4f46e5;
+    background: linear-gradient(to right, #4f46e5, #7c3aed); /* Indigo 600 to Purple 600 */
 }
 .btn-success {
-    background-color: #16a34a; /* Green 600 */
-    border-color: #16a34a;
+    background: linear-gradient(to right, #16a34a, #65a30d); /* Green 600 to Lime 600 */
 }
 .btn-pulsar {
-    background-color: #f97316; /* Orange 500 */
-    border-color: #f97316;
+    background: linear-gradient(to right, #f97316, #ea580c); /* Orange for Pulsar */
 }
 
 /* Table styling */
 #resultsTableContainer {
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
 }
 #resultsTableBody tr:hover {
     background-color: #f9fafb; /* Gray 50 */
@@ -161,9 +161,10 @@ body {
 
 /* Instructions box styling */
 .instructions-box {
-    transition: box-shadow 0.3s ease;
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
 }
 .instructions-box:hover {
-     box-shadow: 0 1px 3px 0 rgba(99, 102, 241, 0.1), 0 1px 2px 0 rgba(99, 102, 241, 0.06);
+     box-shadow: 0 4px 6px -1px rgba(99, 102, 241, 0.2), 0 2px 4px -1px rgba(99, 102, 241, 0.1);
+     transform: translateY(-2px);
 }
 

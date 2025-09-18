@@ -58,7 +58,7 @@
             
             <div id="sentimentSovContainer" class="hidden mb-6 p-4 border rounded-lg bg-gray-50">
                 <h3 class="font-bold text-lg mb-3 text-center">Sentiment Share of Voice</h3>
-                <div id="sovBars" class="space-y-2"></div>
+                <div id="sovBars" class="space-y-3"></div>
             </div>
 
             <div id="resultsTableContainer" class="max-h-[30rem] overflow-y-auto border border-gray-200 rounded-lg"></div>
@@ -85,7 +85,8 @@
                     </div>
                 </div>
                 <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mt-6">
-                     <button id="downloadBtn" class="btn btn-success w-full sm:w-auto">Download CSV</button>
+                     <button id="downloadCsvBtn" class="btn btn-success w-full sm:w-auto">Download CSV</button>
+                     <button id="downloadSentimentBtn" class="btn btn-primary w-full sm:w-auto">Download Sentiment Report</button>
                      <button id="pulsarBtn" class="btn btn-pulsar w-full sm:w-auto flex items-center justify-center">
                         <span id="pulsarBtnText">Push to Pulsar TRAC</span>
                         <div id="pulsarLoader" class="loader ease-linear rounded-full border-4 border-t-4 h-6 w-6 ml-3 hidden"></div>
@@ -117,7 +118,8 @@
         const sentimentSovContainer = document.getElementById('sentimentSovContainer');
         const sovBars = document.getElementById('sovBars');
         const pulsarSection = document.getElementById('pulsarSection');
-        const downloadBtn = document.getElementById('downloadBtn');
+        const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+        const downloadSentimentBtn = document.getElementById('downloadSentimentBtn');
         const pulsarBtn = document.getElementById('pulsarBtn');
         const pulsarBtnText = document.getElementById('pulsarBtnText');
         const pulsarLoader = document.getElementById('pulsarLoader');
@@ -141,7 +143,8 @@
         imageUpload.addEventListener('change', (e) => handleFiles(e.target.files));
         extractBtn.addEventListener('click', handleExtractClick);
         sentimentBtn.addEventListener('click', handleSentimentClick);
-        downloadBtn.addEventListener('click', generateCSV);
+        downloadCsvBtn.addEventListener('click', () => generateCSV(false));
+        downloadSentimentBtn.addEventListener('click', () => generateCSV(true));
         pulsarBtn.addEventListener('click', handlePulsarClick);
 
         function handleFiles(files) {
@@ -277,10 +280,10 @@
         async function callGeminiAPI(imageData) {
             const apiKey = "AIzaSyDRo_7IcLRRKwqKhZtTE1-JtOu5Hb1ZRsY";
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-            const prompt = `Analyze this screenshot... (same prompt as before)`; // Abridged for brevity
+            const prompt = `Analyze this screenshot from a social media feed. Identify each individual comment, the author, its relative timestamp (e.g., "1h", "2d ago"), and the number of likes (as a number, not text like "1.2k"). Return the data as a JSON object with a single key "comments". The value of "comments" should be an array of objects, where each object represents a single comment and has four keys: "author", "text", "timestamp", and "likes". If a value for likes is not visible, return 0. For example: { "comments": [{ "author": "user123", "text": "This is a great post!", "timestamp": "2h ago", "likes": 15 }] }. Do not include entries where the comment text is empty. If you cannot find any comments, return an empty array.`;
             const payload = {
                 contents: [{ parts: [{ text: prompt }, { inlineData: { mimeType: "image/png", data: imageData } }] }],
-                generationConfig: { responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: { "comments": { "type": "ARRAY", "items": { "type": "OBJECT", "properties": { "author": { "type": "STRING" }, "text": { "type": "STRING" }, "timestamp": { "type": "STRING" } } } } } } }
+                generationConfig: { responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: { "comments": { "type": "ARRAY", "items": { "type": "OBJECT", "properties": { "author": { "type": "STRING" }, "text": { "type": "STRING" }, "timestamp": { "type": "STRING" }, "likes": { "type": "NUMBER" } }, "required": ["author", "text", "timestamp", "likes"] } } } } }
             };
             const response = await fetchWithRetry(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             if (!response.ok) throw new Error(`AI service failed: ${await response.text()}`);
@@ -294,7 +297,7 @@
             const apiKey = "AIzaSyDRo_7IcLRRKwqKhZtTE1-JtOu5Hb1ZRsY";
             const commentTexts = comments.map(c => c.text);
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-            const prompt = `Analyze the sentiment... (same prompt as before)`; // Abridged
+            const prompt = `Analyze the sentiment of the following list of comments. For each comment, classify it as 'Positive', 'Negative', or 'Neutral'. Also, provide an overall summary of the sentiment distribution as a "share of voice" (SOV). Return the data as a single JSON object with two keys: "sentiments" and "sov". The "sentiments" key should be an array of strings, one for each comment in the original order. The "sov" key should be an object with keys 'Positive', 'Negative', and 'Neutral', with their percentage values (as numbers, summing to 100). Example: { "sentiments": ["Positive", "Negative", "Neutral"], "sov": { "Positive": 60, "Negative": 25, "Neutral": 15 } }. Here are the comments: ${JSON.stringify(commentTexts)}`;
             const payload = {
                 contents: [{ parts: [{ text: prompt }] }],
                 generationConfig: { responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: { "sentiments": { "type": "ARRAY", "items": { "type": "STRING" } }, "sov": { "type": "OBJECT", "properties": { "Positive": { "type": "NUMBER" }, "Negative": { "type": "NUMBER" }, "Neutral": { "type": "NUMBER" } } } } } }
@@ -320,14 +323,14 @@
             if (withSentiment) {
                 tableHTML += `<th class="px-6 py-3 text-left text-xs font-medium uppercase">Sentiment</th>`;
             }
-            tableHTML += `<th class="px-6 py-3 text-left text-xs font-medium uppercase">Timestamp</th></tr></thead><tbody class="bg-white divide-y divide-gray-200">`;
+            tableHTML += `<th class="px-6 py-3 text-left text-xs font-medium uppercase">Likes</th><th class="px-6 py-3 text-left text-xs font-medium uppercase">Timestamp</th></tr></thead><tbody class="bg-white divide-y divide-gray-200">`;
             comments.forEach(comment => {
                 tableHTML += `<tr><td class="px-6 py-4 text-sm font-medium">${escapeHTML(comment.author)}</td><td class="px-6 py-4 text-sm">${escapeHTML(comment.text)}</td>`;
                 if (withSentiment) {
                     const color = comment.sentiment === 'Positive' ? 'text-green-600' : comment.sentiment === 'Negative' ? 'text-red-600' : 'text-gray-500';
                     tableHTML += `<td class="px-6 py-4 text-sm font-semibold ${color}">${escapeHTML(comment.sentiment)}</td>`;
                 }
-                tableHTML += `<td class="px-6 py-4 text-sm">${escapeHTML(comment.timestamp)}</td></tr>`;
+                 tableHTML += `<td class="px-6 py-4 text-sm">${escapeHTML(comment.likes)}</td><td class="px-6 py-4 text-sm">${escapeHTML(comment.timestamp)}</td></tr>`;
             });
             tableHTML += `</tbody></table>`;
             resultsTableContainer.innerHTML = tableHTML;
@@ -340,7 +343,20 @@
             const colors = { Positive: 'bg-green-500', Negative: 'bg-red-500', Neutral: 'bg-gray-400' };
             sovBars.innerHTML = '';
             for (const [sentiment, value] of Object.entries(sov)) {
-                sovBars.innerHTML += `<div class="w-full bg-gray-200 rounded-full h-4"><div class="${colors[sentiment]} h-4 rounded-full text-xs font-medium text-white text-center p-0.5 leading-none" style="width: ${value}%">${value}% ${sentiment}</div></div>`;
+                const barWrapper = document.createElement('div');
+                barWrapper.className = 'flex items-center text-sm';
+                
+                const label = document.createElement('span');
+                label.className = 'w-24 font-semibold text-gray-700';
+                label.textContent = `${sentiment}: ${value}%`;
+
+                const bar = document.createElement('div');
+                bar.className = 'w-full bg-gray-200 rounded-full h-4 ml-2';
+                bar.innerHTML = `<div class="${colors[sentiment]} h-4 rounded-full" style="width: ${value}%"></div>`;
+                
+                barWrapper.appendChild(label);
+                barWrapper.appendChild(bar);
+                sovBars.appendChild(barWrapper);
             }
             sentimentSovContainer.classList.remove('hidden');
         }
@@ -377,11 +393,45 @@
         function escapeHTML(str) { return String(str || '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]); }
         
         function parseRelativeTime(relativeString, referenceDate) {
-            // Abridged for brevity
             if (!relativeString) return "N/A";
             const now = new Date(referenceDate);
             let date = new Date(now);
-            // ... same logic as before to parse time
+            const matchers = [
+                { regex: /(\d+)\s*s(ec)?/, unit: 'seconds' }, { regex: /(\d+)\s*m(in)?/, unit: 'minutes' },
+                { regex: /(\d+)\s*h(r|our)?/, unit: 'hours' }, { regex: /(\d+)\s*d(ay)?/, unit: 'days' },
+                { regex: /(\d+)\s*w(k|eek)?/, unit: 'weeks' }, { regex: /(\d+)\s*mo(nth)?/, unit: 'months' },
+                { regex: /(\d+)\s*y(r|ear)?/, unit: 'years' }
+            ];
+            let matched = false;
+            for (const { regex, unit } of matchers) {
+                const match = str.match(regex);
+                if (match) {
+                    const value = parseInt(match[1], 10);
+                    if (unit === 'seconds') date.setSeconds(date.getSeconds() - value);
+                    if (unit === 'minutes') date.setMinutes(date.getMinutes() - value);
+                    if (unit === 'hours') date.setHours(date.getHours() - value);
+                    if (unit === 'days') date.setDate(date.getDate() - value);
+                    if (unit === 'weeks') date.setDate(date.getDate() - value * 7);
+                    if (unit === 'months') date.setMonth(date.getMonth() - value);
+                    if (unit === 'years') date.setFullYear(date.getFullYear() - value);
+                    matched = true;
+                    break;
+                }
+            }
+            if (str.includes("yesterday")) {
+                date.setDate(date.getDate() - 1);
+                matched = true;
+            }
+            if (!matched) {
+                const parsedDate = new Date(str);
+                if (!isNaN(parsedDate.getTime())) {
+                    if (!/(\d{4})/.test(str)) {
+                        parsedDate.setFullYear(now.getFullYear());
+                        if (parsedDate > now) parsedDate.setFullYear(now.getFullYear() - 1);
+                    }
+                    date = parsedDate;
+                } else { return relativeString; }
+            }
             const year = date.getFullYear();
             const month = String(date.getMonth() + 1).padStart(2, '0');
             const day = String(date.getDate()).padStart(2, '0');
@@ -391,21 +441,53 @@
             return `${day}/${month}/${year} ${hour}:${minute}:${second}`;
         }
 
-        function generateCSV() {
-            // Abridged for brevity
-            const commentsToExport = extractedComments.filter(c => c.text && c.text.trim());
-            const headers = ['Content ID', 'Date', 'Comment/Content', 'Author'];
+        function generateCSV(withSentiment) {
+            if (extractedComments.length === 0) {
+                showMessage('Error', 'No comments to download.', 'error');
+                return;
+            }
+            const escapeCSV = (field) => {
+                if (field == null) return '';
+                let str = String(field);
+                if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                    str = str.replace(/"/g, '""');
+                    return `"${str}"`;
+                }
+                return str;
+            };
+            
+            const headers = ['Content ID', 'Date', 'Comment/Content', 'Author', 'Likes'];
+            if (withSentiment) {
+                headers.push('Sentiment');
+            }
+
             const csvRows = [headers.join(',')];
-            commentsToExport.forEach(c => {
-                const values = [crypto.randomUUID(), c.timestamp, c.text, c.author];
-                csvRows.push(values.map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(','));
+            const commentsToExport = extractedComments.filter(comment => comment.text && comment.text.trim() !== '');
+
+            commentsToExport.forEach(comment => {
+                const contentId = crypto.randomUUID();
+                const values = [
+                    escapeCSV(contentId),
+                    escapeCSV(comment.timestamp),
+                    escapeCSV(comment.text),
+                    escapeCSV(comment.author),
+                    escapeCSV(comment.likes)
+                ];
+                if (withSentiment) {
+                    values.push(escapeCSV(comment.sentiment || 'N/A'));
+                }
+                csvRows.push(values.join(','));
             });
-            const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            const csvContent = csvRows.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
-            link.download = 'extracted-comments.csv';
+            link.download = withSentiment ? 'sentiment-report.csv' : 'extracted-comments.csv';
+            document.body.appendChild(link);
             link.click();
+            document.body.removeChild(link);
         }
     </script>
 </body>
 </html>
+

@@ -34,21 +34,10 @@
             <p class="text-gray-500 mt-2">Turn social media screenshots into structured data.</p>
         </div>
 
-        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-8">
-            <h3 class="font-bold text-gray-700 mb-2">Configuration</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-medium text-gray-500 uppercase">Google Gemini API Key</label>
-                    <input type="password" id="geminiApiKeyInput" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Paste AIza..." value="AIzaSyCv2ioXyiW3s3uc6qbOC2ih1Lr-0gKBoiE">
-                </div>
-            </div>
-            <p class="text-xs text-gray-400 mt-2">Key loaded. Keep this file private.</p>
-        </div>
-
         <div class="instructions-box bg-indigo-50 border-l-4 border-indigo-400 text-indigo-800 p-4 rounded-r-lg mb-8 text-sm">
             <p class="font-bold mb-2">How to use:</p>
             <ol class="list-decimal list-inside space-y-1">
-                <li>Use a scrolling screenshot tool (like "GoFullPage" or "Capture X").</li>
+                <li>Use a scrolling screenshot tool (like "Capture X" or "GoFullPage").</li>
                 <li>Capture the comments section.</li>
                 <li>Upload the long screenshot below.</li>
             </ol>
@@ -121,6 +110,12 @@
     </div>
 
     <script>
+        // ============================================
+        // HIDDEN CONFIGURATION
+        // ============================================
+        const GEMINI_API_KEY = "AIzaSyCv2ioXyiW3s3uc6qbOC2ih1Lr-0gKBoiE";
+        // ============================================
+
         // --- DOM Elements ---
         const dropZone = document.getElementById('dropZone');
         const imageUpload = document.getElementById('imageUpload');
@@ -148,7 +143,6 @@
         const messageBox = document.getElementById('messageBox');
         const messageTitle = document.getElementById('messageTitle');
         const messageText = document.getElementById('messageText');
-        const geminiApiKeyInput = document.getElementById('geminiApiKeyInput');
 
         let uploadedFiles = []; 
         let extractedComments = [];
@@ -218,12 +212,6 @@
         }
 
         async function handleExtractClick() {
-            const apiKey = geminiApiKeyInput.value.trim();
-            if (!apiKey) {
-                showMessage('Missing Key', 'Please enter your Gemini API Key in the configuration section.', 'error');
-                return;
-            }
-
             if (uploadedFiles.length === 0) return;
 
             setLoading(extractBtn, btnText, loader, true, 'Analyzing Images...');
@@ -233,7 +221,7 @@
 
             try {
                 for (const fileObj of uploadedFiles) {
-                    const result = await callGeminiAPI(fileObj.base64, apiKey);
+                    const result = await callGeminiAPI(fileObj.base64);
                     const comments = result
                         .filter(comment => comment.text && comment.text.trim() !== '')
                         .map(comment => ({
@@ -254,12 +242,11 @@
         }
         
         async function handleSentimentClick() {
-            const apiKey = geminiApiKeyInput.value.trim();
             if (extractedComments.length === 0) return;
             
             setLoading(sentimentBtn, sentimentBtnText, sentimentLoader, true, 'Running Analysis...');
             try {
-                const result = await callSentimentAPI(extractedComments, apiKey);
+                const result = await callSentimentAPI(extractedComments);
                 
                 // Map sentiments back to original array
                 extractedComments.forEach((comment, index) => {
@@ -322,9 +309,9 @@
             }
         }
 
-        async function callGeminiAPI(imageData, apiKey) {
-            // FIX: Changed 'gemini-1.5-flash' to 'gemini-1.5-flash-latest' to resolve 404
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+        async function callGeminiAPI(imageData) {
+            // FIX: Using 'gemini-1.5-flash-002' which is a specific stable release to avoid 404 on aliases
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${GEMINI_API_KEY}`;
             
             const prompt = `
                 Analyze this screenshot of a comment section.
@@ -365,10 +352,10 @@
             throw new Error('No data found in AI response.');
         }
 
-        async function callSentimentAPI(comments, apiKey) {
+        async function callSentimentAPI(comments) {
             const commentTexts = comments.map(c => c.text);
-            // FIX: Changed 'gemini-1.5-flash' to 'gemini-1.5-flash-latest'
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`;
+            // FIX: Using 'gemini-1.5-flash-002'
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${GEMINI_API_KEY}`;
             
             const prompt = `
                 Analyze the sentiment of these comments. 

@@ -15,7 +15,6 @@
         .thumbnail-wrapper { position: relative; display: inline-block; margin: 10px; }
         .thumbnail { width: 100px; height: 100px; object-fit: cover; border-radius: 8px; border: 2px solid #e5e7eb; }
         .remove-img-btn { position: absolute; top: -8px; right: -8px; background: #ef4444; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; }
-        /* Custom Button Colors */
         .btn { padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: 600; transition: all 0.2s; }
         .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-primary { background-color: #4f46e5; color: white; }
@@ -110,11 +109,16 @@
     </div>
 
     <script>
-        // ============================================
-        // HIDDEN CONFIGURATION
-        // ============================================
         const GEMINI_API_KEY = "AIzaSyCv2ioXyiW3s3uc6qbOC2ih1Lr-0gKBoiE";
-        // ============================================
+        
+        // --- Smart Model Fallback List ---
+        // This solves the 404 error by trying known working models in order of stability.
+        const FALLBACK_MODELS = [
+            'gemini-1.5-flash-latest', 
+            'gemini-1.5-flash-002',
+            'gemini-1.5-flash',
+            'gemini-1.5-flash-001'
+        ];
 
         // --- DOM Elements ---
         const dropZone = document.getElementById('dropZone');
@@ -168,10 +172,8 @@
         function handleFiles(files) {
             for (const file of files) {
                 if (!file.type.startsWith('image/')) continue;
-                
                 const fileId = crypto.randomUUID();
                 const reader = new FileReader();
-
                 reader.onload = (e) => {
                     uploadedFiles.push({
                         id: fileId,
@@ -189,11 +191,9 @@
             uploadedFiles.forEach(fileObj => {
                 const wrapper = document.createElement('div');
                 wrapper.className = 'thumbnail-wrapper';
-                
                 const img = document.createElement('img');
                 img.src = URL.createObjectURL(fileObj.file);
                 img.className = 'thumbnail';
-
                 const removeBtn = document.createElement('div');
                 removeBtn.className = 'remove-img-btn';
                 removeBtn.innerHTML = '&#x2715;';
@@ -201,7 +201,6 @@
                     uploadedFiles = uploadedFiles.filter(f => f.id !== fileObj.id);
                     renderGallery();
                 };
-
                 wrapper.appendChild(img);
                 wrapper.appendChild(removeBtn);
                 galleryContainer.appendChild(wrapper);
@@ -213,7 +212,6 @@
 
         async function handleExtractClick() {
             if (uploadedFiles.length === 0) return;
-
             setLoading(extractBtn, btnText, loader, true, 'Analyzing Images...');
             hideMessage();
             resetResults();
@@ -221,7 +219,7 @@
 
             try {
                 for (const fileObj of uploadedFiles) {
-                    const result = await callGeminiAPI(fileObj.base64);
+                    const result = await callGeminiWithFallback(fileObj.base64); // Uses fallback logic
                     const comments = result
                         .filter(comment => comment.text && comment.text.trim() !== '')
                         .map(comment => ({
@@ -231,7 +229,7 @@
                     extractedComments.push(...comments);
                 }
                 displayResults(extractedComments);
-                pulsarSection.classList.remove('hidden'); // Show export options immediately
+                pulsarSection.classList.remove('hidden'); 
                 pulsarSection.classList.add('fade-in-up');
             } catch (error) {
                 console.error('Extraction failed:', error);
@@ -243,24 +241,19 @@
         
         async function handleSentimentClick() {
             if (extractedComments.length === 0) return;
-            
             setLoading(sentimentBtn, sentimentBtnText, sentimentLoader, true, 'Running Analysis...');
             try {
-                const result = await callSentimentAPI(extractedComments);
-                
-                // Map sentiments back to original array
+                const result = await callSentimentWithFallback(extractedComments); // Uses fallback logic
                 extractedComments.forEach((comment, index) => {
-                    // Safe access in case API returns fewer items
                     if(result.sentiments[index]) {
                         comment.sentiment = result.sentiments[index];
                     } else {
                         comment.sentiment = 'Neutral';
                     }
                 });
-
                 displayResults(extractedComments, true);
                 displaySov(result.sov);
-                actionButtons.classList.add('hidden'); // Hide analyze button after running
+                actionButtons.classList.add('hidden'); 
             } catch (error) {
                 showMessage('Sentiment Error', error.message, 'error');
             } finally {
@@ -287,31 +280,33 @@
             }
         }
 
-        // --- API Calls ---
+        // --- Robust API Calling with Fallback ---
 
-        async function fetchWithRetry(url, options, retries = 3) {
-            try {
-                const response = await fetch(url, options);
-                // 404 is usually fatal (wrong model), don't retry it. 429/503 are retriable.
-                if (response.status === 429 || response.status === 503) { 
-                    if (retries > 0) {
-                        await new Promise(res => setTimeout(res, 2000)); 
-                        return fetchWithRetry(url, options, retries - 1);
+        async function callGeminiWithFallback(imageData) {
+            let lastError = null;
+            
+            // Loop through known models until one works
+            for (const modelName of FALLBACK_MODELS) {
+                try {
+                    console.log(`Attempting model: ${modelName}`);
+                    const result = await callGeminiAPI(imageData, modelName);
+                    return result; // Success! Return immediately
+                } catch (error) {
+                    console.warn(`Model ${modelName} failed: ${error.message}`);
+                    lastError = error;
+                    // If error is NOT a 404, we might want to stop? 
+                    // But usually for "not found" or "not supported", we just try the next.
+                    if (!error.message.includes('404') && !error.message.includes('not found')) {
+                       // If it's a real server error (500) or quota (429), maybe we should stop?
+                       // For now, let's keep trying to be safe.
                     }
                 }
-                return response;
-            } catch (error) {
-                if (retries > 0) {
-                    await new Promise(res => setTimeout(res, 2000));
-                    return fetchWithRetry(url, options, retries - 1);
-                }
-                throw error;
             }
+            throw lastError || new Error("All models failed to respond.");
         }
 
-        async function callGeminiAPI(imageData) {
-            // FIX: Using base 'gemini-1.5-flash' which is the universal alias.
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        async function callGeminiAPI(imageData, model) {
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
             
             const prompt = `
                 Analyze this screenshot of a comment section.
@@ -332,18 +327,16 @@
                 }
             };
             
-            const response = await fetchWithRetry(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             
             if (!response.ok) {
                 const errText = await response.text();
-                // Parse the error to show something readable
                 let errMessage = errText;
                 try {
                     const errObj = JSON.parse(errText);
                     errMessage = errObj.error.message || errText;
                 } catch(e) {}
-                
-                throw new Error(`Gemini API Error (${response.status}): ${errMessage}`);
+                throw new Error(`${errMessage}`);
             }
             
             const result = await response.json();
@@ -352,18 +345,29 @@
             throw new Error('No data found in AI response.');
         }
 
-        async function callSentimentAPI(comments) {
+        async function callSentimentWithFallback(comments) {
+            let lastError = null;
+            for (const modelName of FALLBACK_MODELS) {
+                try {
+                    const result = await callSentimentAPI(comments, modelName);
+                    return result;
+                } catch (error) {
+                    console.warn(`Sentiment Model ${modelName} failed: ${error.message}`);
+                    lastError = error;
+                }
+            }
+            throw lastError || new Error("All sentiment models failed.");
+        }
+
+        async function callSentimentAPI(comments, model) {
             const commentTexts = comments.map(c => c.text);
-             // FIX: Using base 'gemini-1.5-flash' which is the universal alias.
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
             
             const prompt = `
                 Analyze the sentiment of these comments. 
                 1. Classify each as 'Positive', 'Negative', or 'Neutral'. 
                 2. Calculate Share of Voice (SOV) percentages.
-                
                 Input: ${JSON.stringify(commentTexts)}
-                
                 Return JSON only: { "sentiments": ["Positive", "Neutral", ...], "sov": { "Positive": 50, "Negative": 20, "Neutral": 30 } }
             `;
             
@@ -375,7 +379,7 @@
                 }
             };
             
-            const response = await fetchWithRetry(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             
             if (!response.ok) {
                 const errText = await response.text();
@@ -384,7 +388,7 @@
                     const errObj = JSON.parse(errText);
                     errMessage = errObj.error.message || errText;
                 } catch(e) {}
-                throw new Error(`Sentiment Analysis Failed: ${errMessage}`);
+                throw new Error(`${errMessage}`);
             }
             
             const result = await response.json();
@@ -397,7 +401,6 @@
             const pulsarApiEndpoint = `https://api.pulsarplatform.com/v2/searches/${targetSearchId}/keywords`;
             const payload = { keywords_to_add: comments };
             const headers = { "Authorization": `Bearer ${pulsarApiKey}`, "Content-Type": "application/json" };
-            
             const response = await fetch(pulsarApiEndpoint, { method: 'PUT', headers, body: JSON.stringify(payload) });
             if (!response.ok) throw new Error(`Pulsar API Error: ${await response.text()}`);
         }
@@ -423,11 +426,9 @@
                     comment.sentiment === 'Positive' ? 'text-green-600 bg-green-50' : 
                     comment.sentiment === 'Negative' ? 'text-red-600 bg-red-50' : 
                     'text-gray-500 bg-gray-50';
-                
                 const sentimentBadge = withSentiment 
                     ? `<td class="px-6 py-4 whitespace-nowrap"><span class="px-2 py-1 text-xs font-semibold rounded-full ${sentimentColor}">${escapeHTML(comment.sentiment)}</span></td>` 
                     : '';
-
                 tableHTML += `
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 text-sm font-medium text-gray-900">${escapeHTML(comment.author)}</td>
@@ -437,7 +438,6 @@
                         <td class="px-6 py-4 text-sm text-gray-400 whitespace-nowrap">${escapeHTML(comment.timestamp)}</td>
                     </tr>`;
             });
-
             tableHTML += `</tbody></table>`;
             resultsTableContainer.innerHTML = tableHTML;
             statusText.textContent = `${comments.length} Comments`;
@@ -448,12 +448,10 @@
         function displaySov(sov) {
             const colors = { Positive: 'bg-green-500', Negative: 'bg-red-500', Neutral: 'bg-gray-400' };
             sovBars.innerHTML = '';
-            
             for (const [sentiment, value] of Object.entries(sov)) {
                 if (value === 0) continue;
                 const barWrapper = document.createElement('div');
                 barWrapper.className = 'flex items-center text-sm';
-                
                 barWrapper.innerHTML = `
                     <span class="w-24 font-semibold text-gray-600 text-xs uppercase">${sentiment}</span>
                     <div class="flex-1 bg-gray-100 rounded-full h-3 ml-2 overflow-hidden">
@@ -487,7 +485,6 @@
             messageText.textContent = text;
             messageBox.className = `mt-6 p-4 rounded-lg fade-in-up border ${type === 'error' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-green-50 border-green-200 text-green-700'}`;
             messageBox.classList.remove('hidden');
-            // Auto hide after 5 seconds if success
             if (type === 'success') setTimeout(hideMessage, 5000);
         }
 
@@ -499,8 +496,6 @@
             const now = new Date(referenceDate);
             const str = String(relativeString).toLowerCase().trim();
             let date = new Date(now);
-            
-            // Regex patterns for relative time
             const matchers = [
                 { regex: /(\d+)\s*s(ec)?/, unit: 'seconds' }, 
                 { regex: /(\d+)\s*m(in)?/, unit: 'minutes' },
@@ -510,7 +505,6 @@
                 { regex: /(\d+)\s*mo(nth)?/, unit: 'months' },
                 { regex: /(\d+)\s*y(r|ear)?/, unit: 'years' }
             ];
-
             let matched = false;
             for (const { regex, unit } of matchers) {
                 const match = str.match(regex);
@@ -531,23 +525,19 @@
                 date.setDate(date.getDate() - 1);
                 matched = true;
             }
-            
             if (!matched) {
-                // Try parsing absolute date
                 const parsedDate = new Date(str);
                 if (!isNaN(parsedDate.getTime())) {
-                    // Check if year is missing (social media often omits current year)
                     if (!/(\d{4})/.test(str)) {
                         parsedDate.setFullYear(now.getFullYear());
                         if (parsedDate > now) parsedDate.setFullYear(now.getFullYear() - 1);
                     }
                     date = parsedDate;
                 } else {
-                    return relativeString; // Return original if parsing fails
+                    return relativeString;
                 }
             }
-
-            return date.toLocaleString('en-GB'); // DD/MM/YYYY HH:MM:SS
+            return date.toLocaleString('en-GB');
         }
 
         function generateCSV(withSentiment) {
@@ -564,12 +554,9 @@
                 }
                 return str;
             };
-            
             const headers = ['Content ID', 'Date', 'Comment', 'Author', 'Likes'];
             if (withSentiment) headers.push('Sentiment');
-
             const csvRows = [headers.join(',')];
-            
             extractedComments.forEach(comment => {
                 const contentId = crypto.randomUUID();
                 const values = [
@@ -580,10 +567,8 @@
                     escapeCSV(comment.likes)
                 ];
                 if (withSentiment) values.push(escapeCSV(comment.sentiment || 'N/A'));
-                
                 csvRows.push(values.join(','));
             });
-
             const csvContent = csvRows.join('\n');
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement('a');

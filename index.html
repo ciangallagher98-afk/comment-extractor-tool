@@ -310,8 +310,8 @@
         }
 
         async function callGeminiAPI(imageData) {
-            // FIX: Using 'gemini-1.5-flash-002' which is a specific stable release to avoid 404 on aliases
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${GEMINI_API_KEY}`;
+            // FIX: Using base 'gemini-1.5-flash' which is the universal alias.
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
             
             const prompt = `
                 Analyze this screenshot of a comment section.
@@ -354,8 +354,8 @@
 
         async function callSentimentAPI(comments) {
             const commentTexts = comments.map(c => c.text);
-            // FIX: Using 'gemini-1.5-flash-002'
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-002:generateContent?key=${GEMINI_API_KEY}`;
+             // FIX: Using base 'gemini-1.5-flash' which is the universal alias.
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
             
             const prompt = `
                 Analyze the sentiment of these comments. 
